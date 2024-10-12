@@ -1,10 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+	"io/ioutil"
 	"log"
+	"math/rand"
+	"strings"
+	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )
@@ -31,7 +39,7 @@ var (
 	alphabet        = "qwertyuiopasdfghjklzxcvbnm"
 	grid            [cols * rows]string
 	dict            []string
-	checkCol        [cols * rows]int
+	check           [cols * rows]int
 	loc             int = 0
 	won                 = false
 	answer          string
@@ -41,13 +49,75 @@ type Game struct {
 	rune []rune
 }
 
+func (g *Game) repeatKeyPressed(key ebiten.Key) bool {
+	const (
+		delay    = 30
+		interval = 3
+	)
+	d := inpututil.KeyPressDuration(key)
+	if d == 1 {
+		return true
+	}
+	if d >= delay && (d-delay)&interval == 0 {
+		return true
+	}
+	return false
+}
+
+func (g *Game) Update() error {
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(bkg)
+	for w := 0; w < cols; w++ {
+		for h := 0; h < rows; h++ {
+			rect := ebiten.NewImage(75, 75)
+			rect.Fill(lightGrey)
+			fontColor = color.Black
+			if check[w+(h*cols)] != 0 {
+				if check[w+(h*cols)] == 1 {
+					rect.Fill(green)
+				}
+				if check[w+(h*cols)] == 2 {
+					rect.Fill(yellow)
+				}
+				if check[w+(h*cols)] == 3 {
+					rect.Fill(grey)
+				}
+				fontColor = color.White
+			}
+			if w+cols*h == loc && check[w+(h*cols)] == 0 {
+				rect.Fill(grey)
+			}
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(w*85+10), float64(h*85+10))
+			screen.DrawImage(rect, op)
+			if check[w+(h*cols)] == 0 {
+				rect2 := ebiten.NewImage(73, 73)
+				rect2.Fill(color.White)
+				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Translate(float64(w*85+10), float64(h*85+10))
+				screen.DrawImage(rect, op)
+			}
+			if grid[w+(h*cols)] != "" {
+				msg := fmt.Sprintf(strings.ToUpper(grid[w+(h*cols)]))
+				text.Draw(screen, msg, mplusNormalFont, w*85+38, h*85+55, fontColor)
+			}
+		}
+	}
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return width, height
+}
+
 func main() {
-	g := &Game{}
 	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	mplusNormalFont, err := opentype.NewFace(tt, &opentype.FaceOptions{
+	mplusNormalFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
 		Size:    fontSize,
 		DPI:     dpi,
 		Hinting: font.HintingFull,
@@ -56,5 +126,16 @@ func main() {
 		log.Fatal(err)
 	}
 	ebiten.SetWindowSize(width, height)
+	ebiten.SetWindowTitle(title)
+	content, err := ioutil.ReadFile("dict.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	dict = strings.Split(string(content), "\n")
+	rand.Seed(time.Now().UnixNano())
+	answer = dict[rand.Intn(len(dict))]
+	fmt.Println(answer)
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Fatal(err)
+	}
 }
-
